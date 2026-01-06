@@ -4,6 +4,7 @@ import numpy as np
 import statsmodels.formula.api as smf
 import plotly.graph_objects as go
 from scipy import stats
+import plotly.express as px
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Cluster Robust SE Explorer", layout="wide")
@@ -47,39 +48,67 @@ def generate_clustered_data(n_clusters, n_per_cluster, icc):
 
 df = generate_clustered_data(n_clusters, n_per_cluster, icc)
 
+col1, col2 = st.columns(2)
 # --- DATA VISUALIZATION SECTION ---
-st.subheader("🔍 Raw Data Distribution (Colored by Cluster)")
-st.write("Each point is an individual. Notice how points of the same color (cluster) tend to stay together—this is the correlation that tricks standard OLS.")
+with col1:
+    st.write("🔍 Raw Data Distribution (Colored by Cluster)")
+    st.write("Notice how points of the same color (cluster) tend to stay together—this represents the intra-cluster correlation.")
+    
+    # 1. Ensure cluster_id is treated as a string/categorical for discrete coloring
+    df_plot = df.copy()
+    df_plot['cluster_id'] = df_plot['cluster_id'].astype(str)
+    # 2. Use color_discrete_sequence instead of color_continuous_scale
+    fig_raw = px.strip(
+        df_plot, 
+        x="treatment", 
+        y="outcome", 
+        color="cluster_id", 
+        stripmode="overlay",
+        title="Outcome vs Treatment (Colored by Cluster ID)",
+        labels={"treatment": "Group", "outcome": "Observed Value"},
+        color_discrete_sequence=px.colors.qualitative.Plotly # Use a categorical palette
+    )
+    fig_raw.update_layout(
+        xaxis = dict(tickmode = 'array', tickvals = [0, 1], ticktext = ['Control', 'Treated']),
+        showlegend=False,
+        height=500
+    )
+    st.plotly_chart(fig_raw, use_container_width=True)
 
-import plotly.express as px
+with col2:
+    st.write("🔍 Distribution of Outcomes by Group")
+    st.write("This shows the 'density' of values. With high ICC, notice how the distributions might look 'bumpy'—those bumps are individual clusters pulling the data.")
+    
+    # Create the overlapping histogram/kde
+    fig_density = px.histogram(
+        df, 
+        x="outcome", 
+        color="treatment",
+        marginal="rug",      # Adds individual data points at the bottom
+        opacity=0.5,
+        barmode="overlay",   # This puts them on top of each other
+        histnorm='probability density', # Normalizes to area=1 (KDE style)
+        color_discrete_map={0: "red", 1: "green"}, # Consistency with CI plot
+        labels={"outcome": "Observed Value", "treatment": "Group"},
+        title="Density Comparison: Control vs Treated"
+    )
+    
+    # Refine labels and layout
+    fig_density.update_layout(
+        legend=dict(title="Group", yanchor="top", y=0.99, xanchor="right", x=0.99),
+        xaxis_title="Observed Outcome",
+        yaxis_title="Density",
+        # Legend names for clarity
+        legend_traceorder="normal"
+    )
+    
+    # Update trace names for the legend
+    newnames = {'0':'Control', '1': 'Treated'}
+    fig_density.for_each_trace(lambda t: t.update(name = newnames[t.name]))
+    
+    st.plotly_chart(fig_density, use_container_width=True)
 
-st.subheader("🔍 Raw Data Distribution (Colored by Cluster)")
-st.write("Notice how points of the same color (cluster) tend to stay together—this represents the intra-cluster correlation.")
-
-# 1. Ensure cluster_id is treated as a string/categorical for discrete coloring
-df_plot = df.copy()
-df_plot['cluster_id'] = df_plot['cluster_id'].astype(str)
-
-# 2. Use color_discrete_sequence instead of color_continuous_scale
-fig_raw = px.strip(
-    df_plot, 
-    x="treatment", 
-    y="outcome", 
-    color="cluster_id", 
-    stripmode="overlay",
-    title="Outcome vs Treatment (Colored by Cluster ID)",
-    labels={"treatment": "Group", "outcome": "Observed Value"},
-    color_discrete_sequence=px.colors.qualitative.Plotly # Use a categorical palette
-)
-
-fig_raw.update_layout(
-    xaxis = dict(tickmode = 'array', tickvals = [0, 1], ticktext = ['Control', 'Treated']),
-    showlegend=False,
-    height=500
-)
-
-st.plotly_chart(fig_raw, use_container_width=True)
-
+st.divider()
 # --- MODELING ---
 # 1. Standard OLS (Non-Robust)
 model_std = smf.ols("outcome ~ treatment", data=df).fit()
