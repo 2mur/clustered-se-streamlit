@@ -53,25 +53,33 @@ st.write("Each point is an individual. Notice how points of the same color (clus
 
 import plotly.express as px
 
-# Create a jittered strip plot
+st.subheader("🔍 Raw Data Distribution (Colored by Cluster)")
+st.write("Notice how points of the same color (cluster) tend to stay together—this represents the intra-cluster correlation.")
+
+# 1. Ensure cluster_id is treated as a string/categorical for discrete coloring
+df_plot = df.copy()
+df_plot['cluster_id'] = df_plot['cluster_id'].astype(str)
+
+# 2. Use color_discrete_sequence instead of color_continuous_scale
 fig_raw = px.strip(
-    df, 
+    df_plot, 
     x="treatment", 
     y="outcome", 
     color="cluster_id", 
     stripmode="overlay",
     title="Outcome vs Treatment (Colored by Cluster ID)",
-    labels={"treatment": "Treatment (0 = Control, 1 = Treated)", "outcome": "Observed Outcome"},
-    color_continuous_scale=px.colors.sequential.Viridis
+    labels={"treatment": "Group", "outcome": "Observed Value"},
+    color_discrete_sequence=px.colors.qualitative.Plotly # Use a categorical palette
 )
 
-# Improve layout
 fig_raw.update_layout(
     xaxis = dict(tickmode = 'array', tickvals = [0, 1], ticktext = ['Control', 'Treated']),
-    showlegend=False # Legend is too long with 40+ clusters
+    showlegend=False,
+    height=500
 )
 
 st.plotly_chart(fig_raw, use_container_width=True)
+
 # --- MODELING ---
 # 1. Standard OLS (Non-Robust)
 model_std = smf.ols("outcome ~ treatment", data=df).fit()
