@@ -47,6 +47,31 @@ def generate_clustered_data(n_clusters, n_per_cluster, icc):
 
 df = generate_clustered_data(n_clusters, n_per_cluster, icc)
 
+# --- DATA VISUALIZATION SECTION ---
+st.subheader("🔍 Raw Data Distribution (Colored by Cluster)")
+st.write("Each point is an individual. Notice how points of the same color (cluster) tend to stay together—this is the correlation that tricks standard OLS.")
+
+import plotly.express as px
+
+# Create a jittered strip plot
+fig_raw = px.strip(
+    df, 
+    x="treatment", 
+    y="outcome", 
+    color="cluster_id", 
+    stripmode="overlay",
+    title="Outcome vs Treatment (Colored by Cluster ID)",
+    labels={"treatment": "Treatment (0 = Control, 1 = Treated)", "outcome": "Observed Outcome"},
+    color_continuous_scale=px.colors.sequential.Viridis
+)
+
+# Improve layout
+fig_raw.update_layout(
+    xaxis = dict(tickmode = 'array', tickvals = [0, 1], ticktext = ['Control', 'Treated']),
+    showlegend=False # Legend is too long with 40+ clusters
+)
+
+st.plotly_chart(fig_raw, use_container_width=True)
 # --- MODELING ---
 # 1. Standard OLS (Non-Robust)
 model_std = smf.ols("outcome ~ treatment", data=df).fit()
